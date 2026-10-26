@@ -121,6 +121,13 @@ void setup() {
 
 void loop() {
   const uint32_t now = millis();
+  static bool reportedConnection = false;
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  if (connected && !reportedConnection) {
+    Serial.printf("Wi-Fi connected | IP: %s | gateway: %s | server: %s\n", WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(), SERVER_URL);
+  }
+  if (!connected && reportedConnection) Serial.println("Wi-Fi disconnected.");
+  reportedConnection = connected;
   // Unsigned subtraction keeps scheduling safe across millis() rollover.
   if (now - lastSampleMs >= SAMPLE_INTERVAL_MS) {
     lastSampleMs = now;
