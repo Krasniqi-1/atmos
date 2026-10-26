@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f8f3">
+  <meta name="description" content="Your local climate, beautifully observed. Live ESP32 and DHT22 temperature and humidity readings.">
+  <title>Atmos — Local climate observatory</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 12h4l3-8 6 16 3-8h4"/></symbol>
+    <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></symbol>
+    <symbol id="i-temp" viewBox="0 0 24 24"><path d="M9 14.5V5a3 3 0 0 1 6 0v9.5a5 5 0 1 1-6 0Z"/><path d="M12 8v10"/><circle cx="12" cy="18" r="1"/></symbol>
+    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 2C9 7 5 10 5 15a7 7 0 0 0 14 0c0-5-4-8-7-13Z"/><path d="M8 15a4 4 0 0 0 4 4"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0m-11 4a6 6 0 0 1 8 0"/><circle cx="12" cy="20" r=".7"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 4h2m4 0h2m-8 4h2"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3c-13-1-18 7-13 12s13 0 13-12ZM4 21l11-11"/></symbol>
+  </defs></svg>
+
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="Atmos home"><span class="brand-mark">a<span></span></span><span>atmos<span class="brand-period">.</span></span></a>
+    <div class="workspace"><span class="workspace-icon"><svg><use href="#i-leaf"/></svg></span><div>My environment<small>Local workspace</small></div><span class="workspace-chevron">⌄</span></div>
+    <div class="nav-label">WORKSPACE</div>
+    <nav aria-label="Main navigation">
+      <a href="#overview" class="nav-item active" data-page="overview"><svg><use href="#i-grid"/></svg>Overview<span class="nav-dot"></span></a>
+      <a href="#readings" class="nav-item" data-page="readings"><svg><use href="#i-wave"/></svg>Reading log</a>
+      <a href="#setup" class="nav-item" data-page="setup"><svg><use href="#i-chip"/></svg>Device setup</a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="local-note"><span class="tiny-dot"></span> Made to stay local.<p>Your space. Your data.<br>Right here on your computer.</p></div>
+      <div class="sidebar-device"><span class="device-avatar"><svg><use href="#i-chip"/></svg></span><div>ESP32 · DHT22<small>6 second sample interval</small></div></div>
+      <span class="version">ATMOS LOCAL <span>V 1.0</span></span>
+    </div>
+  </aside>
+
+  <div class="app-shell">
+    <header class="topbar"><div class="breadcrumbs">Workspace <span>/</span> <strong id="breadcrumb">Overview</strong></div><div class="topbar-right"><span class="local-pill"><span></span> Local server</span><span id="today" class="today"></span></div></header>
+    <main>
+      <section class="page-heading"><div><div class="eyebrow">A WINDOW INTO YOUR ENVIRONMENT</div><h1 id="page-title">Your room, in real time<span>.</span></h1><p id="page-description">Small changes. A clearer picture of the space around you.</p></div><button id="export" class="button button-white"><svg><use href="#i-down"/></svg>Export CSV</button></section>
+
+      <div class="source-bar"><div class="source-name"><span class="source-orb"></span><strong>Room sensor</strong><span class="separator">/</span><span>ESP32-WROOM-32D</span></div><div class="source-controls">
+        <div id="log-date-filter" class="date-filter" hidden>
+          <button id="date-filter-toggle" class="button button-white date-filter-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="date-filter-panel"><svg><use href="#i-calendar"/></svg><span id="date-filter-label">Last 24 hours</span><span id="export-metrics-label" class="filter-measurement-summary">Temp + humidity</span><span class="filter-caret">⌄</span></button>
+          <div id="date-filter-panel" class="date-filter-panel" role="dialog" aria-labelledby="date-filter-title" hidden>
+            <form id="date-filter-form">
+              <div class="filter-heading"><svg><use href="#i-calendar"/></svg><h2 id="date-filter-title">Customize your export</h2></div>
+              <p class="filter-intro">Filter the reading log and your CSV export together.</p>
+              <label for="log-range" class="filter-label">Time span</label>
+              <select id="log-range"><option value="15m">Last 15 minutes</option><option value="1h">Last hour</option><option value="24h" selected>Last 24 hours</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="all">All saved data</option><option value="custom">Custom dates & times</option></select>
+              <div id="custom-date-fields" class="custom-date-fields" hidden><label class="filter-label" for="log-from">From<input id="log-from" type="datetime-local" step="60"></label><label class="filter-label" for="log-to">To<input id="log-to" type="datetime-local" step="60"></label></div>
+              <p id="filter-range-preview" class="filter-range-preview"></p>
+              <p class="filter-timezone"><svg><use href="#i-clock"/></svg><span id="filter-timezone-label">Times use your local timezone.</span></p>
+              <fieldset id="export-metrics" class="export-metrics"><legend>Measurements in CSV</legend><div class="metric-choices"><label class="metric-choice"><input id="export-temperature" type="checkbox" value="temperature" checked><svg><use href="#i-temp"/></svg><span>Temperature<small>°C</small></span></label><label class="metric-choice"><input id="export-humidity" type="checkbox" value="humidity" checked><svg><use href="#i-drop"/></svg><span>Humidity<small>% RH</small></span></label></div><p>Check one or both. Timestamps and device details are always included.</p></fieldset>
+              <p id="filter-error" class="filter-error" role="alert" hidden></p>
+              <div class="filter-actions"><button id="reset-date-filter" type="button" class="text-button">Reset</button><button type="submit" class="button button-dark">Apply filter <svg><use href="#i-check"/></svg></button></div>
+            </form>
+          </div>
+        </div>
+        <span id="feed-state" class="feed-state">Connecting…</span><div class="segmented mode-switch" role="group" aria-label="Data source"><button id="mode-live" data-mode="live">Device</button><button id="mode-demo" data-mode="demo">Demo</button></div></div></div>
+      <div id="demo-notice" class="demo-notice" hidden><svg><use href="#i-info"/></svg><span><strong>Demo mode.</strong> These are simulated readings. Your sensor data is kept separate.</span><button id="connect-device">Connect your device <span>↗</span></button></div>
+      <div id="connection-notice" class="connection-notice" hidden role="status">The local server is disconnected. Reconnecting automatically…</div>
+
+      <section id="overview-page" class="page-content">
+        <div class="metrics-grid">
+          <article class="metric-card temperature-card"><div class="card-heading"><span class="metric-icon"><svg><use href="#i-temp"/></svg></span><h2>Temperature</h2><span class="small-label">CELSIUS</span></div><div class="main-reading"><span id="temperature">—</span><span class="reading-unit">°C</span></div><div class="metric-footer"><span id="temperature-tag" class="metric-tag">Awaiting reading</span><span id="temperature-change">Every 6 seconds</span></div><svg class="metric-decoration" viewBox="0 0 200 110" aria-hidden="true"><path d="M0 90C30 85 30 30 70 45s40 60 70 10 40-50 60-35"/><path d="M0 100C30 95 30 40 70 55s40 60 70 10 40-50 60-35"/><path d="M0 110C30 105 30 50 70 65s40 60 70 10 40-50 60-35"/></svg></article>
+          <article class="metric-card humidity-card"><div class="card-heading"><span class="metric-icon"><svg><use href="#i-drop"/></svg></span><h2>Relative humidity</h2><span class="small-label">PERCENT</span></div><div class="main-reading"><span id="humidity">—</span><span class="reading-unit">%</span></div><div class="metric-footer"><span id="humidity-tag" class="metric-tag">Awaiting reading</span><span id="humidity-change">Every 6 seconds</span></div><div class="humidity-rings" aria-hidden="true"><i></i><i></i><i></i><i></i></div></article>
+          <article class="condition-card"><div class="condition-top"><span class="sun-icon"><svg><use href="#i-sun"/></svg></span><span class="small-label">SPACE AT A GLANCE</span></div><h2 id="comfort-title">Ready to observe.</h2><p id="comfort-description">Connect your sensor to get a feel for your environment.</p><div class="comfort-scale"><span id="comfort-marker"></span></div><div class="scale-labels"><span>Cool</span><span>Balanced</span><span>Warm</span></div><div class="comfort-note"><svg><use href="#i-info"/></svg>Based on temperature · 20–26°C reference</div></article>
+        </div>
+
+        <article class="chart-panel panel"><div class="panel-heading"><div><div class="section-eyebrow">THE BIGGER PICTURE</div><h2>Climate over time</h2></div><div class="chart-controls"><div id="metric-switch" class="segmented" role="group" aria-label="Chart metric"><button class="active" data-metric="temperature">Temperature</button><button data-metric="humidity">Humidity</button></div><div id="range-switch" class="segmented range-switch" role="group" aria-label="Chart time range"><button data-range="15">15m</button><button class="active" data-range="60">1h</button><button data-range="360">6h</button><button data-range="1440">24h</button></div></div></div>
+          <div class="chart-meta"><span><i id="legend-dot"></i><span id="legend-label">Temperature</span> <strong id="chart-current">—</strong></span><span id="chart-count">0 readings in this window</span></div>
+          <div class="chart-container" id="chart-container"><svg id="climate-chart" viewBox="0 0 1000 244" role="img" aria-label="Temperature over the last hour"></svg><div id="chart-tooltip" class="chart-tooltip" hidden></div><div id="chart-empty" class="chart-empty" hidden><span class="empty-icon"><svg><use href="#i-wave"/></svg></span><strong>Waiting for your first reading</strong><span>Connect your ESP32 or explore the demo.</span><button id="empty-demo" class="text-button">Explore demo →</button></div></div>
+          <div class="chart-summary"><div><span>Minimum</span><strong id="chart-min">—</strong></div><div><span>Average</span><strong id="chart-average">—</strong></div><div><span>Maximum</span><strong id="chart-max">—</strong></div><span class="chart-footnote"><span class="tiny-dot"></span> One sample, every 6 seconds</span></div>
+        </article>
+
+        <div class="bottom-grid"><article class="device-panel panel"><div class="section-eyebrow">BEHIND THE READINGS</div><div class="device-panel-title"><h2>One small sensor.<br>A new perspective.</h2><div class="chip-art" aria-hidden="true"><svg><use href="#i-chip"/></svg></div></div><div class="device-details"><span>ESP32-WROOM-32D <i>+</i> AM2302 / DHT22</span><button id="open-setup" class="circle-button" aria-label="Open device setup"><svg><use href="#i-arrow"/></svg></button></div></article>
+          <article class="telemetry-panel panel"><div class="telemetry-heading"><h2>Connection details</h2><span id="device-badge" class="status-badge">Waiting</span></div><div class="telemetry-grid"><div><svg><use href="#i-clock"/></svg><span>Last measurement</span><strong id="last-seen">—</strong></div><div><svg><use href="#i-wifi"/></svg><span>Signal strength</span><strong id="signal">—</strong></div><div><svg><use href="#i-drop"/></svg><span>Dew point <small>calculated</small></span><strong id="dew-point">—</strong></div><div><svg><use href="#i-wave"/></svg><span>Sampling rate</span><strong>10 <small>/ min</small></strong></div></div></article></div>
+      </section>
+
+      <section id="readings-page" class="page-content panel readings-panel" hidden><div class="panel-heading"><div><div class="section-eyebrow">EVERY LITTLE CHANGE</div><h2>Recent measurements</h2></div><span id="log-summary" class="muted" aria-live="polite"></span></div><div id="history-error" class="history-error" hidden role="alert"><span></span><button id="retry-history" class="text-button">Retry</button></div><div class="table-scroll"><table><thead><tr><th>Measured at</th><th>Temperature</th><th>Humidity</th><th>Signal</th><th>Source</th></tr></thead><tbody id="readings-body"></tbody></table></div><p id="log-table-note" class="table-note">Showing the latest 100 matches. Export CSV includes every reading in your selected time range.</p></section>
+
+      <section id="setup-page" class="page-content" hidden>
+        <div class="setup-grid"><article class="panel setup-card"><div class="step-label">01 / WIRE YOUR SENSOR</div><h2>A simple connection.</h2><p>For an ESP32 development board with USB and a short sensor cable.</p>
+          <div class="wiring-state-row"><span id="wiring-status" class="wiring-status" role="status">Device offline</span><span id="wiring-status-detail">Waiting for a live reading</span></div>
+          <div id="wiring-diagram" class="wiring-diagram" data-connection="offline" role="img" aria-label="ESP32 to DHT22 wiring. Device offline; wires disconnected. 3V3 to VCC, GPIO 27 to DATA, GND to GND.">
+            <div class="wire-device"><svg><use href="#i-chip"/></svg><strong>ESP32</strong><span>WROOM-32D</span></div>
+            <div class="wires">
+              <div class="wire power"><span>3V3</span><i><b class="wire-segment wire-left"></b><b class="wire-segment wire-right"></b><span class="wire-energy"><em class="wire-current"></em></span></i><span>VCC</span></div>
+              <div class="wire data"><span>GPIO 27</span><i><b class="wire-segment wire-left"></b><b class="wire-segment wire-right"></b><span class="wire-energy"><em class="wire-current"></em></span></i><span>DATA</span></div>
+              <div class="wire ground"><span>GND</span><i><b class="wire-segment wire-left"></b><b class="wire-segment wire-right"></b><span class="wire-energy"><em class="wire-current"></em></span></i><span>GND</span></div>
+            </div>
+            <div class="wire-device sensor-art"><svg><use href="#i-temp"/></svg><strong>DHT22</strong><span>AM2302</span></div>
+          </div>
+          <p class="setup-hint"><svg><use href="#i-info"/></svg>Use a 4.7k–10kΩ pull-up between DATA and 3V3 if your sensor does not already have one. Identify pins from your sensor's markings; wire colours vary. Keep the cable under 1 m.</p></article>
+        <article class="panel setup-card"><div class="step-label">02 / FIND YOUR SERVER</div><h2>Keep it on the same Wi-Fi.</h2><p>Use a 2.4 GHz network for the ESP32. The PC can use Ethernet or Wi-Fi on the same LAN.</p><label class="field-label" for="server-url">ESP32 upload URL</label><div class="copy-field"><input id="server-url" readonly value="Detecting your local address…"><button id="copy-url" class="icon-button" aria-label="Copy upload URL"><svg><use href="#i-copy"/></svg></button></div><label class="field-label" for="device-token">Device token <span>Saved only on this PC</span></label><div class="copy-field"><input id="device-token" type="password" readonly value=""><button id="copy-token" class="icon-button" aria-label="Copy device token"><svg><use href="#i-copy"/></svg></button></div><p id="setup-network-note" class="setup-hint">Your PC needs to stay on while collecting measurements. Allow Node.js through Windows Firewall on your private network if prompted.</p></article></div>
+        <article class="panel firmware-panel"><div class="panel-heading"><div><div class="step-label">03 / FLASH WITH ARDUINO IDE</div><h2>Your sensor, ready to go.</h2><p>Install <strong>esp32 by Espressif Systems</strong>, <strong>DHT sensor library by Adafruit</strong>, and <strong>Adafruit Unified Sensor</strong>.</p></div><a id="download-sketch" class="button button-dark" href="/api/sketch" download="atmos_sensor.ino"><svg><use href="#i-down"/></svg>Download Arduino sketch</a></div><div class="firmware-instructions"><span><b>1</b> Open atmos_sensor.ino</span><span><b>2</b> Set Wi-Fi name & password</span><span><b>3</b> Verify the PC IP, select board & COM port</span><span><b>4</b> Upload · Serial Monitor: 115200</span></div><details class="code-details"><summary><svg><use href="#i-code"/></svg>View full ESP32 sketch<span>Arduino C++</span></summary><div class="code-toolbar"><span>atmos_sensor.ino</span><button id="copy-sketch" class="text-button">Copy code <svg><use href="#i-copy"/></svg></button></div><pre><code id="sketch-code">Open this section to load the sketch.</code></pre></details><p class="setup-hint">The download includes your server address and device token when opened from localhost. Only your Wi-Fi credentials need editing. If your PC has multiple network adapters, verify the selected address. This prototype uses local HTTP and is intended for your trusted LAN.</p></article>
+      </section>
+      <footer><span><span class="footer-logo">a.</span> A little closer to your environment.</span><span id="footer-status">LOCAL FIRST. ALWAYS.</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

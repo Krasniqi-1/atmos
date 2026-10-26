@@ -1,0 +1,13 @@
+{
+  "name": "atmos-local",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A local ESP32 + DHT22 climate observatory. No runtime dependencies.",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/server.test.mjs",
+    "check": "node --check server.mjs && node --check dist/app.js"
+  },
+  "engines": { "node": ">=20" }
+}
