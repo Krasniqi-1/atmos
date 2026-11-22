@@ -22,8 +22,10 @@ await writeFile(new URL('.vc-config.json', handler), JSON.stringify({
 }));
 await writeFile(new URL('config.json', output), JSON.stringify({
   version: 3,
+  crons: [{ path: '/api/v1/maintenance/rollups', schedule: '0 3 * * *' }],
   routes: [
     { src: '^/api/v1/(.*)$', dest: '/api/v1/preview' },
+    { src: '^/live/?$', dest: '/index.html' },
     { src: '^/$', dest: '/index.html' },
   ],
 }));

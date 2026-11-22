@@ -16,11 +16,21 @@
 #include <DHT.h>
 #include <esp_system.h>
 
+#if __has_include("secrets.h")
+#include "secrets.h"
+#else
 // EDIT THESE FOUR VALUES. Use your PC's LAN IPv4, never "localhost".
 const char* WIFI_SSID = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* SERVER_URL = "http://YOUR_PC_IP:3000/api/readings";
 const char* DEVICE_TOKEN = "YOUR_DEVICE_TOKEN";
+#endif
+
+#ifdef ATMOS_HOSTED_UPLOAD
+#include <WiFiClientSecure.h>
+#include <time.h>
+constexpr time_t MIN_VALID_CLOCK = 1735689600; // 1 January 2025 UTC
+#endif
 
 const char* DEVICE_ID = "esp32-room-01";
 constexpr uint8_t DHT_PIN = 27;
@@ -72,15 +82,40 @@ void sampleSensor() {
 void uploadOldest() {
   Sample& sample = pending[queueHead];
   char body[384];
+#ifdef ATMOS_HOSTED_UPLOAD
+  if (time(nullptr) < MIN_VALID_CLOCK) {
+    Serial.println("Waiting for network time before HTTPS upload.");
+    retryDelayMs = 5000;
+    return;
+  }
+  if (!String(SERVER_URL).startsWith("https://")) {
+    Serial.println("Hosted uploads require an HTTPS URL.");
+    retryDelayMs = 30000;
+    return;
+  }
+  snprintf(body, sizeof(body),
+    "{\"readingId\":\"%s-%lu\",\"temperature\":%.2f,\"humidity\":%.2f,\"ageMs\":%lu}",
+    bootId, (unsigned long)sample.sequence, sample.temperature, sample.humidity,
+    (unsigned long)(millis() - sample.sampledMs));
+  WiFiClientSecure client;
+  client.setCACert(ATMOS_ROOT_CA);
+  client.setHandshakeTimeout(8);
+#else
   snprintf(body, sizeof(body),
     "{\"deviceId\":\"%s\",\"readingId\":\"%s-%lu\",\"temperature\":%.2f,\"humidity\":%.2f,\"rssi\":%ld,\"uptimeMs\":%lu,\"ageMs\":%lu}",
     DEVICE_ID, bootId, (unsigned long)sample.sequence, sample.temperature, sample.humidity,
     (long)sample.rssi, (unsigned long)sample.sampledMs, (unsigned long)(millis() - sample.sampledMs));
 
   WiFiClient client;
+#endif
   HTTPClient http;
+#ifdef ATMOS_HOSTED_UPLOAD
+  http.setConnectTimeout(7000);
+  http.setTimeout(7000);
+#else
   http.setConnectTimeout(1200);
   http.setTimeout(1200);
+#endif
   if (!http.begin(client, SERVER_URL)) {
     Serial.println("Could not open SERVER_URL. Check the address.");
     retryDelayMs = 30000;
@@ -111,6 +146,9 @@ void setup() {
   snprintf(bootId, sizeof(bootId), "%08lx%08lx", (unsigned long)esp_random(), (unsigned long)esp_random());
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
+#ifdef ATMOS_HOSTED_UPLOAD
+  configTime(0, 0, "time.cloudflare.com", "pool.ntp.org");
+#endif
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.println("\nATMOS | ESP32 + DHT22 | one reading every 6 seconds");
   Serial.println("Connecting to 2.4 GHz Wi-Fi. Readings buffer while disconnected.");

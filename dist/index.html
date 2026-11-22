@@ -52,7 +52,7 @@
     <main>
       <section class="page-heading"><div><div class="eyebrow">A WINDOW INTO YOUR ENVIRONMENT</div><h1 id="page-title">Your room, in real time<span>.</span></h1><p id="page-description">Small changes. A clearer picture of the space around you.</p></div><button id="export" class="button button-white"><svg><use href="#i-down"/></svg>Export CSV</button></section>
 
-      <div class="source-bar"><div class="source-name"><span class="source-orb"></span><strong>Room sensor</strong><span class="separator">/</span><span>ESP32-WROOM-32D</span></div><div class="source-controls">
+      <div class="source-bar"><div class="source-name"><span class="source-orb"></span><strong>Room sensor</strong><span class="separator">/</span><span>ESP32-WROOM-32D</span></div><div class="source-controls"><button id="cloud-connect" class="button button-white" type="button" aria-controls="cloud-form">Connect device</button>
         <div id="log-date-filter" class="date-filter" hidden>
           <button id="date-filter-toggle" class="button button-white date-filter-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="date-filter-panel"><svg><use href="#i-calendar"/></svg><span id="date-filter-label">Last 24 hours</span><span id="export-metrics-label" class="filter-measurement-summary">Temp + humidity</span><span class="filter-caret">⌄</span></button>
           <div id="date-filter-panel" class="date-filter-panel" role="dialog" aria-labelledby="date-filter-title" hidden>
@@ -71,6 +71,13 @@
           </div>
         </div>
         <span id="feed-state" class="feed-state">Connecting…</span><div class="segmented mode-switch" role="group" aria-label="Data source"><button id="mode-live" data-mode="live">Device</button><button id="mode-demo" data-mode="demo">Demo</button></div></div></div>
+      <form id="cloud-form" class="source-bar" hidden>
+        <label for="cloud-key">Device key</label>
+        <input id="cloud-key" name="device-key" type="password" autocomplete="off" required>
+        <button class="button button-dark" type="submit">Connect</button>
+        <button id="cloud-disconnect" class="button button-white" type="button" hidden>Disconnect</button>
+        <span id="cloud-status" role="status"></span>
+      </form>
       <div id="demo-notice" class="demo-notice" hidden><svg><use href="#i-info"/></svg><span><strong>Demo mode.</strong> These are simulated readings. Your sensor data is kept separate.</span><button id="connect-device">Connect your device <span>↗</span></button></div>
       <div id="connection-notice" class="connection-notice" hidden role="status">The local server is disconnected. Reconnecting automatically…</div>
 

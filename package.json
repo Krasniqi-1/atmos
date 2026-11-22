@@ -7,13 +7,16 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check server.mjs && node --check dist/app.js && node --check hosted/preview.mjs"
+    "check": "node --check server.mjs && node --check dist/app.js && node --check hosted/preview.mjs",
+    "db:migrate": "node scripts/migrate-preview.mjs",
+    "db:rollups": "node scripts/refresh-rollups.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.2.1"
+    "@neondatabase/serverless": "^1.2.1",
+    "jose": "^6.2.18"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.17",

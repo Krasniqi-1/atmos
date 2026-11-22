@@ -199,6 +199,27 @@ export async function createAtmosServer(options = {}) {
       if (req.headers['sec-fetch-site'] === 'cross-site') return json(res, 403, { error: 'Cross-site requests are disabled' });
       prune();
 
+      const cloudResource = url.pathname.match(/^\/api\/cloud\/(readings|export\.csv)$/)?.[1];
+      if (req.method === 'GET' && cloudResource) {
+        const key = req.headers.authorization;
+        if (!/^Bearer [A-Za-z0-9_-]{43}$/.test(key ?? '')) return json(res, 401, { error: 'Device key required' });
+        const upstreamUrl = new URL('/api/v1/device/' + cloudResource, 'https://atmos-roan.vercel.app');
+        upstreamUrl.search = url.search;
+        let upstream;
+        try {
+          upstream = await fetch(upstreamUrl, {
+            headers: { Authorization: key }, redirect: 'error', signal: AbortSignal.timeout(12000),
+          });
+        } catch {
+          return json(res, 502, { error: 'Cloud feed unavailable' });
+        }
+        res.writeHead(upstream.status, {
+          'Content-Type': upstream.headers.get('content-type') ?? 'application/octet-stream',
+          'Cache-Control': 'no-store',
+        });
+        return res.end(Buffer.from(await upstream.arrayBuffer()));
+      }
+
       if (req.method === 'GET' && url.pathname === '/api/status') return json(res, 200, status());
       if (req.method === 'GET' && url.pathname === '/api/readings') return json(res, 200, { readings, ...status() });
       if (req.method === 'GET' && url.pathname === '/api/history') {

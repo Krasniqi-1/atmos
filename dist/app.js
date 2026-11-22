@@ -2,6 +2,9 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const HOUR = 3_600_000;
 const hostedDemo = document.documentElement.hasAttribute('data-hosted-demo');
+const livePage = location.pathname.replace(/\/$/, '') === '/live';
+let cloudKey, cloudRequest, cloudEpoch = 0;
+const cloudSource = { rows: [], connected: false, loaded: false, name: '' };
 const state = {
   mode: 'live', explicitMode: false, page: 'overview', metric: 'temperature', range: 60,
   readings: [], demo: [], connected: false, loaded: false, setup: null, sketch: '', chart: null,
@@ -23,7 +26,7 @@ function toast(message) {
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => { $('#toast').hidden = true; }, 3500);
 }
-function currentReadings() { return state.mode === 'demo' ? state.demo : state.readings; }
+function currentReadings() { return state.mode === 'demo' ? state.demo : state.mode === 'cloud' ? cloudSource.rows : state.readings; }
 function latest() { return currentReadings().at(-1); }
 function sampleDemo(t) {
   const x = t / HOUR;
@@ -54,6 +57,7 @@ function setMode(mode, explicit = true) {
     state.explicitMode = true;
     try { sessionStorage.setItem('atmos-source', mode); } catch { /* Optional preference. */ }
   }
+  if (mode !== 'cloud') { cloudEpoch++; cloudRequest?.abort(); }
   if (mode === 'demo') updateDemo();
   render();
   if (state.page === 'readings') refreshLogHistory();
@@ -103,18 +107,22 @@ function updateConnection() {
   const demo = state.mode === 'demo';
   const age = row ? Math.max(0, Date.now() - Date.parse(row.measuredAt)) : Infinity;
   const stale = age > 20000;
+  const cloud = state.mode === 'cloud';
+  const connected = cloud ? cloudSource.connected : state.connected;
+  const loaded = cloud ? cloudSource.loaded : state.loaded;
   let label = 'Awaiting device', css = '';
   if (demo) { label = 'Simulated feed'; css = 'is-demo'; }
-  else if (!state.connected) { label = state.loaded ? 'Server disconnected' : 'Connecting…'; css = 'is-stale'; }
+  else if (cloud && !cloudKey) { label = 'Device key required'; css = 'is-stale'; }
+  else if (!connected) { label = loaded ? 'Connection interrupted' : 'Connecting…'; css = 'is-stale'; }
   else if (row && !stale) { label = 'Live · every 6s'; css = 'is-live'; }
   else if (row) { label = 'Readings stale'; css = 'is-stale'; }
   const feed = $('#feed-state');
   feed.textContent = label;
   feed.className = `feed-state ${css}`;
-  $('#connection-notice').hidden = hostedDemo || state.connected || !state.loaded;
+  $('#connection-notice').hidden = hostedDemo || cloud || connected || !loaded;
   const topPill = $('.local-pill');
-  topPill.lastChild.textContent = hostedDemo ? ' Hosted demo' : state.connected ? ' Local server' : ' Server offline';
-  $('#device-badge').textContent = demo ? 'Demo feed' : !state.connected ? 'Disconnected' : !row ? 'No device' : stale ? 'Stale' : 'Connected';
+  topPill.lastChild.textContent = cloud ? ' Cloud device' : hostedDemo ? ' Hosted demo' : connected ? ' Local server' : ' Server offline';
+  $('#device-badge').textContent = demo ? 'Demo feed' : !connected ? 'Disconnected' : !row ? 'No device' : stale ? 'Stale' : 'Connected';
   $('#last-seen').textContent = !row ? 'Not yet' : age < 1000 ? 'Just now' : age < 60000 ? `${Math.floor(age / 1000)} sec ago` : age < HOUR ? `${Math.floor(age / 60000)} min ago` : `${Math.floor(age / HOUR)} hr ago`;
   $('#last-seen').title = row ? dateTime.format(new Date(row.measuredAt)) : 'No measurements';
   if (row && stale && !demo) {
@@ -123,7 +131,7 @@ function updateConnection() {
     $('#comfort-title').textContent = 'A pause in the picture.';
     $('#comfort-description').textContent = 'No fresh measurement for over 20 seconds. Check your sensor and Wi-Fi.';
   }
-  $('#footer-status').textContent = demo ? 'DEMO DATA · SIMULATED' : 'LOCAL FIRST. ALWAYS.';
+  $('#footer-status').textContent = demo ? 'DEMO DATA · SIMULATED' : cloud ? 'LIVE DATA · NEON POSTGRESQL' : 'LOCAL DATA · ESP32';
   // The wiring represents real device contact, independent of the demo selector.
   const deviceRow = state.readings.at(-1);
   const deviceAge = deviceRow ? Math.max(0, Date.now() - Date.parse(deviceRow.measuredAt)) : Infinity;
@@ -399,16 +407,19 @@ async function refreshLogHistory() {
   clearTimeout(historyRefreshTimer);
   historyController?.abort();
   const request = ++historyRequest;
-  if (state.page !== 'readings' || state.mode === 'demo') { renderLog(); return; }
+  if (state.page !== 'readings' || state.mode === 'demo' || (state.mode === 'cloud' && !cloudKey)) { renderLog(); return; }
   historyController = new AbortController();
   state.history.loading = true; state.history.error = '';
   renderLog();
   try {
-    const response = await fetch(`/api/history?${rangeParams(filterBounds())}`, { signal: historyController.signal, cache: 'no-store' });
+    const bounds = filterBounds();
+    const response = state.mode === 'cloud'
+      ? await cloudFetch('readings', bounds, { signal: historyController.signal, limit: 100 })
+      : await fetch(`/api/history?${rangeParams(bounds)}`, { signal: historyController.signal, cache: 'no-store' });
     if (!response.ok) throw new Error('Could not load saved readings. Check that the latest server is running, then retry.');
     const data = await response.json();
     if (request !== historyRequest) return;
-    state.history = { rows: data.readings, count: data.count, loading: false, loaded: true, error: '' };
+    state.history = { rows: data.readings, count: data.count ?? data.readings.length, loading: false, loaded: true, error: '' };
   } catch (error) {
     if (request !== historyRequest || error.name === 'AbortError') return;
     state.history = { rows: [], count: 0, loading: false, loaded: false, error: error.message };
@@ -416,7 +427,7 @@ async function refreshLogHistory() {
   renderLog();
 }
 function scheduleLogRefresh() {
-  if (state.page === 'readings' && state.mode === 'live' && !state.history.loading) {
+  if (state.page === 'readings' && state.mode !== 'demo' && !state.history.loading) {
     clearTimeout(historyRefreshTimer);
     historyRefreshTimer = setTimeout(refreshLogHistory, 200);
   }
@@ -467,7 +478,7 @@ async function syncHistory() {
   if (!response.ok) throw new Error('Could not fetch measurements');
   const data = await response.json();
   mergeReadings(data.readings);
-  if (!state.loaded && !state.explicitMode && !state.readings.length) {
+  if (!state.loaded && !state.explicitMode && !state.readings.length && state.mode !== 'cloud') {
     state.mode = 'demo'; updateDemo();
   }
   state.loaded = true;
@@ -569,7 +580,7 @@ $('#export').addEventListener('click', async () => {
   const bounds = state.page === 'readings' ? filterBounds() : { from: Date.now() - 24 * HOUR, to: Date.now() + 1 };
   const demoRows = mode === 'demo' ? filterDemoRows(bounds) : null;
   if (demoRows && !demoRows.length) return toast('No simulated readings in this time range. Choose a more recent range.');
-  if (mode === 'live' && state.page === 'readings' && state.history.loaded && !state.history.loading && !state.history.count) return toast('No readings in this time range. Choose another date or time span.');
+  if (mode !== 'demo' && state.page === 'readings' && state.history.loaded && !state.history.loading && !state.history.count) return toast('No readings in this time range. Choose another date or time span.');
   state.exporting = true;
   $('#export').disabled = true;
   $('#export').setAttribute('aria-busy', 'true');
@@ -582,7 +593,9 @@ $('#export').addEventListener('click', async () => {
     } else {
       const params = rangeParams(bounds);
       params.set('metrics', metrics.join(','));
-      const response = await fetch(`/api/export?${params}`, { cache: 'no-store' });
+      const response = mode === 'cloud'
+        ? await cloudFetch('export.csv', bounds, { metrics })
+        : await fetch(`/api/export?${params}`, { cache: 'no-store' });
       if (!response.ok || !response.headers.get('content-type')?.includes('text/csv')) throw new Error('Export failed. Check that the server is connected and try again.');
       blob = await response.blob();
     }
@@ -599,6 +612,90 @@ $('#export').addEventListener('click', async () => {
     $('#export').removeAttribute('aria-busy');
   }
 });
+function cloudFetch(resource, bounds, { signal, limit, metrics } = {}) {
+  const params = new URLSearchParams();
+  if (bounds) {
+    params.set('start', new Date(bounds.from).toISOString());
+    params.set('end', new Date(bounds.to).toISOString());
+  }
+  if (limit) params.set('limit', limit);
+  if (metrics) params.set('metrics', metrics.join(','));
+  const path = hostedDemo ? '/api/v1/device/' : '/api/cloud/';
+  return fetch(path + resource + '?' + params, {
+    headers: { Authorization: 'Bearer ' + cloudKey }, signal, cache: 'no-store',
+  });
+}
+function openCloudConnection() {
+  $('#cloud-form').hidden = false;
+  $('#cloud-key').focus();
+}
+async function refreshCloud() {
+  if (!cloudKey || cloudRequest) return;
+  const epoch = cloudEpoch;
+  const request = new AbortController();
+  cloudRequest = request;
+  const timeout = setTimeout(() => request.abort(), 13000);
+  try {
+    const response = await cloudFetch('readings', null, { signal: request.signal, limit: 500 });
+    if (epoch !== cloudEpoch) return;
+    if (response.status === 401) {
+      cloudKey = undefined;
+      cloudSource.rows = [];
+      throw new Error('Device key rejected.');
+    }
+    if (!response.ok) throw new Error('Cloud feed unavailable. Retrying when connected.');
+    const { device, readings } = await response.json();
+    if (epoch !== cloudEpoch) return;
+    cloudSource.rows = readings.slice().reverse();
+    cloudSource.name = device.name;
+    cloudSource.connected = true;
+    cloudSource.loaded = true;
+    $('#cloud-status').textContent = 'Connected to ' + device.name;
+    $('#cloud-disconnect').hidden = false;
+    render();
+    scheduleLogRefresh();
+  } catch (error) {
+    if (epoch !== cloudEpoch) return;
+    cloudSource.connected = false;
+    cloudSource.loaded = true;
+    $('#cloud-status').textContent = error.name === 'AbortError' ? 'Cloud request timed out. Retrying.' : error.message;
+    if (!cloudKey) $('#cloud-disconnect').hidden = true;
+    render();
+  } finally {
+    clearTimeout(timeout);
+    if (cloudRequest === request) cloudRequest = undefined;
+  }
+}
+$('#cloud-connect').addEventListener('click', openCloudConnection);
+$('#cloud-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const input = $('#cloud-key');
+  const key = input.value.trim();
+  input.value = '';
+  if (!key) return;
+  cloudKey = key;
+  cloudEpoch++;
+  cloudRequest?.abort();
+  cloudRequest = undefined;
+  cloudSource.rows = [];
+  cloudSource.connected = false;
+  cloudSource.loaded = false;
+  cloudSource.name = '';
+  state.history = { rows: [], count: 0, loading: false, error: '', loaded: false };
+  $('#cloud-status').textContent = 'Connecting…';
+  setMode('cloud');
+  refreshCloud();
+});
+$('#cloud-disconnect').addEventListener('click', () => {
+  cloudKey = undefined;
+  cloudSource.rows = [];
+  $('#cloud-status').textContent = '';
+  $('#cloud-disconnect').hidden = true;
+  setMode(hostedDemo ? 'demo' : 'live');
+});
+setInterval(() => {
+  if (state.mode === 'cloud' && !document.hidden) refreshCloud();
+}, 6000);
 if (hostedDemo) {
   state.mode = 'demo';
   updateDemo();
@@ -611,3 +708,4 @@ if (hostedDemo) {
   connectLocalSensor();
 }
 changePage();
+if (livePage) { setMode('cloud'); openCloudConnection(); }
