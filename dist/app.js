@@ -1,6 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const HOUR = 3_600_000;
+const hostedDemo = document.documentElement.hasAttribute('data-hosted-demo');
 const state = {
   mode: 'live', explicitMode: false, page: 'overview', metric: 'temperature', range: 60,
   readings: [], demo: [], connected: false, loaded: false, setup: null, sketch: '', chart: null,
@@ -59,7 +60,8 @@ function setMode(mode, explicit = true) {
 }
 function changePage() {
   const name = location.hash.slice(1) || 'overview';
-  state.page = ['overview', 'readings', 'setup'].includes(name) ? name : 'overview';
+  const pages = hostedDemo ? ['overview', 'readings'] : ['overview', 'readings', 'setup'];
+  state.page = pages.includes(name) ? name : 'overview';
   const labels = {
     overview: ['Overview', 'Your room, in real time', 'Small changes. A clearer picture of the space around you.'],
     readings: ['Reading log', 'Every reading tells a story', 'A closer look at the changes in your environment.'],
@@ -109,9 +111,9 @@ function updateConnection() {
   const feed = $('#feed-state');
   feed.textContent = label;
   feed.className = `feed-state ${css}`;
-  $('#connection-notice').hidden = state.connected || !state.loaded;
+  $('#connection-notice').hidden = hostedDemo || state.connected || !state.loaded;
   const topPill = $('.local-pill');
-  topPill.lastChild.textContent = state.connected ? ' Local server' : ' Server offline';
+  topPill.lastChild.textContent = hostedDemo ? ' Hosted demo' : state.connected ? ' Local server' : ' Server offline';
   $('#device-badge').textContent = demo ? 'Demo feed' : !state.connected ? 'Disconnected' : !row ? 'No device' : stale ? 'Stale' : 'Connected';
   $('#last-seen').textContent = !row ? 'Not yet' : age < 1000 ? 'Just now' : age < 60000 ? `${Math.floor(age / 1000)} sec ago` : age < HOUR ? `${Math.floor(age / 60000)} min ago` : `${Math.floor(age / HOUR)} hr ago`;
   $('#last-seen').title = row ? dateTime.format(new Date(row.measuredAt)) : 'No measurements';
@@ -472,25 +474,27 @@ async function syncHistory() {
   render();
   scheduleLogRefresh();
 }
-const events = new EventSource('/api/events');
-events.addEventListener('ready', () => {
-  state.connected = true;
-  syncHistory().catch(() => { state.loaded = true; state.connected = false; render(); });
-  updateConnection();
-});
-events.addEventListener('reading', event => {
-  try {
-    mergeReadings([JSON.parse(event.data)]);
-    if (!state.explicitMode && state.mode === 'demo') { state.mode = 'live'; toast('Your ESP32 is connected. Showing real measurements.'); }
-    render();
-    scheduleLogRefresh();
-  } catch { toast('Could not display an incoming measurement. Reconnect to refresh.'); }
-});
-events.onerror = () => { state.connected = false; state.loaded = true; updateConnection(); };
-// Refresh after tab sleep so reconnection cannot leave a gap in chart history.
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && state.connected) syncHistory().catch(() => {});
-});
+function connectLocalSensor() {
+  const events = new EventSource('/api/events');
+  events.addEventListener('ready', () => {
+    state.connected = true;
+    syncHistory().catch(() => { state.loaded = true; state.connected = false; render(); });
+    updateConnection();
+  });
+  events.addEventListener('reading', event => {
+    try {
+      mergeReadings([JSON.parse(event.data)]);
+      if (!state.explicitMode && state.mode === 'demo') { state.mode = 'live'; toast('Your ESP32 is connected. Showing real measurements.'); }
+      render();
+      scheduleLogRefresh();
+    } catch { toast('Could not display an incoming measurement. Reconnect to refresh.'); }
+  });
+  events.onerror = () => { state.connected = false; state.loaded = true; updateConnection(); };
+  // Refresh after tab sleep so reconnection cannot leave a gap in chart history.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && state.connected) syncHistory().catch(() => {});
+  });
+}
 let lastChartTick = 0;
 setInterval(() => {
   const cutoff = Date.now() - 24 * HOUR;
@@ -595,4 +599,15 @@ $('#export').addEventListener('click', async () => {
     $('#export').removeAttribute('aria-busy');
   }
 });
+if (hostedDemo) {
+  state.mode = 'demo';
+  updateDemo();
+  for (const element of $$('.mode-switch, [data-page="setup"], #connect-device, #open-setup, .local-note')) {
+    element.hidden = true;
+  }
+  $('.workspace small').textContent = 'Demo workspace';
+  $('.version').firstChild.textContent = 'ATMOS DEMO ';
+} else {
+  connectLocalSensor();
+}
 changePage();
