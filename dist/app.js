@@ -4,7 +4,7 @@ const HOUR = 3_600_000;
 const hostedDemo = document.documentElement.hasAttribute('data-hosted-demo');
 const livePage = location.pathname.replace(/\/$/, '') === '/live';
 let cloudKey, cloudRequest, cloudEpoch = 0;
-const cloudSource = { rows: [], connected: false, loaded: false, name: '' };
+const cloudSource = { rows: [], connected: false, loaded: false };
 const state = {
   mode: 'live', explicitMode: false, page: 'overview', metric: 'temperature', range: 60,
   readings: [], demo: [], connected: false, loaded: false, setup: null, sketch: '', chart: null,
@@ -456,7 +456,16 @@ function renderLog() {
     const row = tbody.insertRow();
     [dateTime.format(new Date(reading.measuredAt)), display(reading.temperature, ' °C'), display(reading.humidity, ' %'), reading.rssi != null ? `${reading.rssi} dBm` : '—'].forEach(value => { row.insertCell().textContent = value; });
     const cell = row.insertCell();
-    const badge = document.createElement('span'); badge.className = 'table-source'; badge.textContent = state.mode === 'demo' ? 'Simulated' : 'ESP32'; cell.append(badge);
+    const badge = document.createElement('span');
+    badge.className = 'table-source';
+    if (demo || reading.provenance === 'simulator') {
+      badge.textContent = 'Simulated';
+    } else if (state.mode === 'live' || reading.provenance === 'physical') {
+      badge.textContent = 'Physical sensor';
+    } else {
+      badge.textContent = 'Unknown source';
+    }
+    cell.append(badge);
   }
 }
 function render() {
@@ -647,7 +656,6 @@ async function refreshCloud() {
     const { device, readings } = await response.json();
     if (epoch !== cloudEpoch) return;
     cloudSource.rows = readings.slice().reverse();
-    cloudSource.name = device.name;
     cloudSource.connected = true;
     cloudSource.loaded = true;
     $('#cloud-status').textContent = 'Connected to ' + device.name;
@@ -680,7 +688,6 @@ $('#cloud-form').addEventListener('submit', (event) => {
   cloudSource.rows = [];
   cloudSource.connected = false;
   cloudSource.loaded = false;
-  cloudSource.name = '';
   state.history = { rows: [], count: 0, loading: false, error: '', loaded: false };
   $('#cloud-status').textContent = 'Connecting…';
   setMode('cloud');

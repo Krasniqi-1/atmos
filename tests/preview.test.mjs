@@ -135,6 +135,20 @@ test('a committed simulator reading survives reopening the preview database', as
     const keyedRead = await request(deviceHistory, { headers: { Authorization: 'Bearer ' + replacementKey } });
     assert.equal(keyedRead.status, 200);
     assert.deepEqual((await keyedRead.json()).readings, [receipt]);
+    const deviceAuth = { headers: { Authorization: 'Bearer ' + replacementKey } };
+    const included = await request(deviceHistory + '?start=' + receipt.measuredAt, deviceAuth);
+    assert.equal(included.status, 200);
+    assert.deepEqual((await included.json()).readings, [receipt]);
+    const excluded = await request(deviceHistory + '?end=' + receipt.measuredAt, deviceAuth);
+    assert.equal(excluded.status, 200);
+    assert.deepEqual((await excluded.json()).readings, []);
+    const includedCsv = await request('/device/export.csv?start=' + receipt.measuredAt, deviceAuth);
+    assert.equal(includedCsv.status, 200);
+    const [, exportedRow] = (await includedCsv.text()).trim().split('\r\n');
+    assert.equal(exportedRow.split(',')[1], receipt.readingId);
+    const excludedCsv = await request('/device/export.csv?end=' + receipt.measuredAt, deviceAuth);
+    assert.equal(excludedCsv.status, 200);
+    assert.equal((await excludedCsv.text()).trim().split('\r\n').length, 1);
     assert.equal((await request('/devices/' + secondDevice.deviceId + '/readings', {
       headers: { Authorization: 'Bearer ' + replacementKey },
     })).status, 401);
@@ -189,7 +203,6 @@ test('a committed simulator reading survives reopening the preview database', as
     request = await start(undefined, true);
     assert.equal((await request('/readings', post({ ...reading, readingId: 'outage' }, replacementKey))).status, 503);
     assert.equal((await database.query("SELECT count(*)::int AS count FROM atmos_readings WHERE reading_id = 'outage'")).rows[0].count, 0);
-    console.log('Local PostgreSQL receipt:', JSON.stringify(receipt));
   } finally {
     await close();
     await rm(directory, { recursive: true, force: true });

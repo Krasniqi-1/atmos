@@ -128,9 +128,9 @@ void uploadOldest() {
     removeOldest();
     retryDelayMs = 1000; // Drain an outage backlog at at most one upload / second.
     Serial.printf("Uploaded (%d). Pending: %u\n", status, queueSize);
-  } else if (status == 400 || status == 413 || status == 415) {
-    Serial.printf("Server rejected sample (%d): %s\n", status, http.getString().c_str());
-    removeOldest(); // A malformed sample must not block subsequent valid samples.
+  } else if (status == 400 || status == 409 || status == 413 || status == 415) {
+    Serial.printf("Discarded rejected sample (HTTP %d).\n", status);
+    removeOldest(); // A permanent rejection must not block later samples.
     retryDelayMs = 1000;
   } else {
     if (status == 401 || status == 403) Serial.println("Authorization failed. Check DEVICE_TOKEN / local server configuration.");

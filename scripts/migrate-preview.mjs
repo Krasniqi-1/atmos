@@ -11,10 +11,10 @@ try {
     const migration = await readFile(new URL('../hosted/' + file, import.meta.url), 'utf8');
     const statements = migration.split(';').map((statement) => statement.trim()).filter(Boolean);
     await sql.transaction(statements.map((statement) => sql.query(statement)));
-    console.log('Applied Atmos preview migration ' + file);
+    console.log(`Applied Atmos migration: ${file}`);
   }
 
 } catch (error) {
-  console.error('Preview migration failed:', error.code ?? error.name);
+  console.error('Atmos migration failed:', error.code ?? error.name);
   process.exitCode = 1;
 }

@@ -1,0 +1,672 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Atmos device data API",
+    "version": "1.0.0",
+    "description": "Production device contract at revision c2fe46b. Neon is accessed by server-side SQL. Device keys are opaque bearer credentials and grant reads and uploads for their associated device."
+  },
+  "servers": [
+    {
+      "url": "https://atmos-roan.vercel.app"
+    }
+  ],
+  "security": [
+    {
+      "DeviceKey": []
+    }
+  ],
+  "paths": {
+    "/api/v1/readings": {
+      "post": {
+        "operationId": "uploadReading",
+        "summary": "Commit a sensor reading",
+        "requestBody": {
+          "required": true,
+          "description": "UTF-8 JSON up to 4096 bytes. The device is resolved from the key. Preserve readingId, temperature and humidity on retry.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Measurement"
+              },
+              "example": {
+                "readingId": "boot7-42",
+                "temperature": 21.8,
+                "humidity": 66.3,
+                "ageMs": 120
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Matching retry returned the existing receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reading"
+                },
+                "example": {
+                  "deviceId": "c5865c07-d115-4b07-bf3b-a6fb9fadd091",
+                  "readingId": "boot7-42",
+                  "measuredAt": "2026-11-22T20:09:51.257Z",
+                  "receivedAt": "2026-11-22T20:09:51.377Z",
+                  "temperature": 21.8,
+                  "humidity": 66.3,
+                  "provenance": "physical"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "New reading committed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reading"
+                },
+                "example": {
+                  "deviceId": "c5865c07-d115-4b07-bf3b-a6fb9fadd091",
+                  "readingId": "boot7-42",
+                  "measuredAt": "2026-11-22T20:09:51.257Z",
+                  "receivedAt": "2026-11-22T20:09:51.377Z",
+                  "temperature": 21.8,
+                  "humidity": 66.3,
+                  "provenance": "physical"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed or invalid reading",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key, disabled device or conflicting deviceId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Same device and readingId with different measurement values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service or database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/device/readings": {
+      "get": {
+        "operationId": "listReadings",
+        "summary": "Read the device history",
+        "description": "Descending by measuredAt then readingId. count includes all matching raw rows, independently of limit.",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive UTC measured timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "description": "Exclusive UTC measured timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of returned rows. CSV returns 422 if additional rows match.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                },
+                "example": {
+                  "device": {
+                    "name": "Room sensor",
+                    "source": "physical"
+                  },
+                  "count": 1,
+                  "readings": [
+                    {
+                      "deviceId": "c5865c07-d115-4b07-bf3b-a6fb9fadd091",
+                      "readingId": "boot7-42",
+                      "measuredAt": "2026-11-22T20:09:51.257Z",
+                      "receivedAt": "2026-11-22T20:09:51.377Z",
+                      "temperature": 21.8,
+                      "humidity": 66.3,
+                      "provenance": "physical"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid range or limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Key rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Device unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service or database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/device/export.csv": {
+      "get": {
+        "operationId": "exportReadings",
+        "summary": "Export matching raw rows",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive UTC measured timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "description": "Exclusive UTC measured timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of returned rows. CSV returns 422 if additional rows match.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 15000,
+              "default": 15000
+            }
+          },
+          {
+            "name": "metrics",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated columns in requested order.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "temperature",
+                "humidity",
+                "temperature,humidity",
+                "humidity,temperature"
+              ],
+              "default": "temperature,humidity"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV download. The reading fields follow the same selection and order as GET history.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "device_id,reading_id,measured_at_utc,received_at_utc,temperature_c,humidity_percent,provenance\r\nc5865c07-d115-4b07-bf3b-a6fb9fadd091,boot7-42,2026-11-22T20:09:51.257Z,2026-11-22T20:09:51.377Z,21.8,66.3,physical\r\n"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid range, limit or metric list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Key rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Device unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Too many matching rows. Narrow the interval.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service or database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/device/rollups": {
+      "get": {
+        "operationId": "listRollups",
+        "summary": "Read five-minute summaries",
+        "description": "Both bounds are required. The maximum range is 31 days. Bounds filter bucket start times, with a descending result order.",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "description": "Inclusive UTC measured timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "description": "Exclusive UTC measured timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rollups"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Key rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Device unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service or database unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "DeviceKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Atmos-issued device key. This is an opaque secret."
+      }
+    },
+    "schemas": {
+      "Measurement": {
+        "type": "object",
+        "required": [
+          "readingId",
+          "temperature",
+          "humidity",
+          "ageMs"
+        ],
+        "properties": {
+          "readingId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 80
+          },
+          "humidity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "ageMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400000
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Reading": {
+        "type": "object",
+        "required": [
+          "deviceId",
+          "readingId",
+          "measuredAt",
+          "receivedAt",
+          "temperature",
+          "humidity",
+          "provenance"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "readingId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,80}$"
+          },
+          "measuredAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 80
+          },
+          "humidity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "provenance": {
+            "type": "string",
+            "enum": [
+              "physical",
+              "simulator"
+            ]
+          }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "required": [
+          "name",
+          "source"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "physical",
+              "simulator"
+            ]
+          }
+        }
+      },
+      "History": {
+        "type": "object",
+        "required": [
+          "device",
+          "count",
+          "readings"
+        ],
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/Device"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "readings": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/Reading"
+            }
+          }
+        }
+      },
+      "Rollup": {
+        "type": "object",
+        "required": [
+          "bucketStart",
+          "sampleCount",
+          "temperatureMin",
+          "temperatureAvg",
+          "temperatureMax",
+          "humidityMin",
+          "humidityAvg",
+          "humidityMax"
+        ],
+        "properties": {
+          "bucketStart": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "sampleCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "temperatureMin": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 80
+          },
+          "temperatureAvg": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 80
+          },
+          "temperatureMax": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 80
+          },
+          "humidityMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "humidityAvg": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "humidityMax": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      },
+      "Rollups": {
+        "type": "object",
+        "required": [
+          "device",
+          "intervalSeconds",
+          "summaries"
+        ],
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/Device"
+          },
+          "intervalSeconds": {
+            "type": "integer",
+            "const": 300
+          },
+          "summaries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Rollup"
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -386,7 +386,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       const addresses = Object.values(os.networkInterfaces()).flat().filter(n => n && n.family === 'IPv4' && !n.internal);
       for (const { address } of addresses) console.log(`  ESP32 API:  http://${address}:${requestedPort}/api/readings`);
       if (!addresses.length) console.log('  No LAN IPv4 address detected. Connect your PC to the same network as the ESP32.');
-      console.log('\n  Open Device setup in the dashboard for your configured Arduino sketch.\n  Real measurements are saved in dp/data/measurements/. Keep this window open. Press Ctrl+C to stop.\n');
+      console.log('\n  Open Device setup in the dashboard for your configured Arduino sketch.\n  Local measurements are saved in the configured data directory. Keep this window open. Press Ctrl+C to stop.\n');
       await openDashboard();
       for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => { await app.close(); process.exit(0); });
     }

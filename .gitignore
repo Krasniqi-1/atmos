@@ -8,5 +8,4 @@ test-results/
 firmware/**/secrets.h
 firmware/**/build/
 
-.vercel
 .env*
